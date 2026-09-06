@@ -1,5 +1,7 @@
 // inject_body.js - Inject article HTML content into WeChat MP ProseMirror editor
-// Run this source through the active browser controller's page-evaluation action.
+// Historical DOM-only helper. Use only when the host permits page mutations.
+// Inspect the active editor and replace the payload first. Never run as-is.
+// Prefer the host's rich-text paste/editor API. success != persisted draft.
 //
 // IMPORTANT: The HTML_CONTENT variable below must be replaced with the actual article HTML
 // before execution. This script serves as a template — the agent should replace the 

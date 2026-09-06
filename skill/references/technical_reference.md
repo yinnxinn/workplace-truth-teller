@@ -1,134 +1,41 @@
-# 微信公众号编辑器技术参考
+# 微信公众号编辑器参考
 
-## 编辑器架构
+浏览器提供者可以是 Codex 内置浏览器，也可以是其他宿主的已授权工具；只使用当前平台实际开放的能力。
 
-微信公众号文章编辑器经历多个版本。正确识别当前版本是内容注入成功的关键。
+仅在[交付协议](draft_delivery.md)选中已授权浏览器时读取。下列选择器来自历史实现，须先在当前页面确认，不能作为固定接口。
 
-### 当前版本：ProseMirror (2024+)
+## 页面与账号
 
-微信约 2024 年从 UEditor 迁移到 ProseMirror。关键特征：
+用宿主支持的浏览器工具读取当前页面和可见账号身份。URL 参数不能单独证明登录有效，不能拿不到页面时构造链接猜测登录态。元素引用只在当前快照范围内有效。
 
-```
-选择器: .ProseMirror (或 .ProseMirror.ProseMirror-focused)
-类型: contenteditable div
-框架: React + ProseMirror
-状态管理: ProseMirror 内部状态（非 React state）
-事件模型: ProseMirror transactions
-```
+## 标题和正文
 
-**内容注入方法**:
-```javascript
-var editor = document.querySelector('.ProseMirror');
-editor.focus();
-editor.innerHTML = htmlString;
-editor.dispatchEvent(new Event('input', { bubbles: true }));
-// 同时派发 change 事件处理边缘情况
-editor.dispatchEvent(new Event('change', { bubbles: true }));
-```
+标题可能是 input、textarea 或 contenteditable；检查元素再使用平台填充/键盘工具。旧实现把标题一律当作 contenteditable 的做法不可靠。
 
-**注意事项**:
-- `innerHTML` 赋值有效，因为 ProseMirror 监听 DOM 变更
-- `input` 事件必须 `{bubbles: true}`，事件委托才能捕获
-- 注入后不要点击其他元素，否则编辑器可能重置
-- 标题和正文是**独立元素**，需分别注入
+正文历史候选包括 ProseMirror、UEditor iframe 或 contenteditable。先选择当前活动、可见的正文区，排除标题、隐藏编辑器及多篇草稿中的其他文章。
 
-### 旧版本：UEditor (2024 前)
+优先使用富文本粘贴或编辑器 API，使内容进入内部状态。只修改 DOM 不保证内部状态、自动保存和持久化一致。输入后失焦、重新打开仍须保留内容，不能靠保持焦点掩盖同步问题。
 
-```
-选择器: #ueditor_0 或 .edui-body-container
-类型: iframe 或 contenteditable div
-```
+`scripts/find_editor.js`、`scripts/inject_body.js` 是历史页面辅助代码，不是浏览器控制器，也不授予脚本权限。仅当宿主允许此页面脚本写入且选择器已确认时才适配执行。注入脚本需要填入真实 HTML，不能原样执行占位模板；它返回的 success 只表示 DOM 写入。
 
-注入方法类似（innerHTML + event），选择器不同。
+## 排版和图片
 
-## 标题输入行为
+用安全生成器产出内联结构，避免依赖外部样式、flex、定位、动画和复杂 CSS；效果以后台回读为准。
 
-公众号编辑器的标题字段**不是标准 `<input>` 元素**：
+富文本粘贴可能处理 base64 图片，不能保证自动上传。检查图片实际上传且重新打开仍可用；失败时使用提供者支持的文件上传功能替换引用。封面需单独设置，本地路径不能当作已上传图片 URL。
 
-- 它是 `contenteditable` div，class 为 `weui-desktop-title__input`
-- 快照工具可能报告为 `textbox [ref=eXX]`
-- **React synthetic value 不可靠**
-- **`.value` 赋值无效**
+## 保存与回读
 
-**可靠方法**：使用 Codex 内置浏览器控制能力，先点击可见标题输入区，再通过键盘输入标题。每次操作前都重新读取当前页面，不复用旧会话中的元素引用。
+1. 保存前核对账号、标题、正文关键段落、图片和封面。
+2. 记录保存尝试，操作当前页面识别到的保存草稿控件。
+3. 等待明确保存信号；超时记为结果不明。
+4. 重新打开同一草稿，核对内容，保留草稿标识及回读证据。
+5. 信号缺失或内容不符时按交付协议核查，不能直接重建。
 
-## 常见元素 Ref（来自快照）
-
-这些 ref 是动态的，每次会话都会变。始终用 `snapshot -i` 获取当前值：
-
-| 元素 | 典型 Ref 模式 | 识别方式 |
-|---|---|---|
-| 标题输入框 | `e53` 附近 | 显示"请在这里输入标题" |
-| 正文编辑器 | `e52` | 有 contenteditable 属性 |
-| 保存草稿按钮 | `e39` | 按钮文字"保存为草稿" |
-| 发表按钮 | `e37` | 按钮文字"发表" |
-| 预览按钮 | `e38` | 按钮文字"预览" |
-| 文章按钮（首页） | `e12` | "新的创作"区域下 |
-
-## CSS 兼容性
-
-注入编辑器的 HTML 必须使用**全内联样式**，外部样式表会被清除。
-
-### 支持的样式属性
-
-- `color`, `font-size`, `font-weight`, `font-style`
-- `background`, `background-color`
-- `padding`, `margin`, `border`, `border-left`, `border-radius`
-- `text-align`, `text-indent`, `line-height`, `letter-spacing`
-- `width`, `height`, `vertical-align`
-
-### 禁用 / 会被清除
-
-- 外部 `<link>` 样式表
-- `<style>` 块（可能被编辑器移除）
-- `position: absolute/fixed`（破坏布局）
-- `display: flex`（部分版本不支持）
-- `box-shadow`, `text-shadow`
-- `linear-gradient`（用纯色替代）
-- 复杂动画
-- 自定义字体（用系统字体）
-
-### 图片处理
-
-- **base64 内联**：`<img src="data:image/jpeg;base64,...">` — 微信编辑器会自动上传到 mmbiz.qpic.cn CDN
-- **外部图床链接**：不可靠，不推荐
-- **本地文件路径**：不支持
-
-## 登录流程
-
-### 公众号后台 URL 模式
-
-```
-登录页: https://mp.weixin.qq.com/ (显示二维码)
-扫码后: https://mp.weixin.qq.com/home?token=XXXXXXXX&lang=zh_CN
-编辑器: https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit&action=edit&type=77&token=XXXX...
-```
-
-`token` 参数表示活跃登录会话。有效 token 通常持续数小时。
-
-### 二维码扫码检测
-
-导航到登录页后：
-1. 截图显示二维码 → 需要用户扫码
-2. 约 5-10 秒后 URL 变为含 `token` → 登录成功
-3. 超时（60s+ 无 token）→ 二维码过期，需刷新
-
-## 常见失败模式与恢复
-
-| 症状 | 原因 | 恢复方法 |
-|---|---|---|
-| 注入后标题不显示 | React 合成事件不匹配 | 改用 click + keyboard type |
-| 正文输入后消失 | ProseMirror 焦点变化时重置 | 先注入正文，再点击其他元素 |
-| 保存按钮无响应 | 内容过大或网络问题 | 等待更长时间，重试保存 |
-| 二维码扫码超时 | 用户未及时扫码 | 重新截图，提示用户 |
-| 图片生成超时 | 模型队列满 | 用纯色占位块 + emoji 替代 |
-
-## 文件输出约定
-
-| 文件 | 用途 |
-|---|---|
-| `真相官-xxx-公众号-微信版.html` | 最终微信版 HTML（全内联样式） |
-| `真相官-xxx-公众号-微信版_body.html` | 仅 body 内容（供 inject_body.js 使用） |
-| `article.json` | 文章结构化数据（供 gen_wechat.py 使用） |
-| `cover.png` / `img1.png` / `img2.png` | AI 生成的配图 |
-| `wechat_*.png` | 公众号后台截图 |
+| 现象 | 处理 |
+| --- | --- |
+| 找不到编辑器 | 刷新快照核对页面；不可识别则降级，不盲猜选择器 |
+| 输入后内容消失 | 检查状态同步与粘贴接口，不能计为保存成功 |
+| 图片是本地地址或丢失 | 使用已授权上传能力并回读 |
+| 保存超时或响应丢失 | 核查原尝试，避免重复草稿 |
+| 站点安全拒绝 | 停止该操作，交付本地成品 |

@@ -2,6 +2,10 @@
 /legacy/
 /browser-profile/
 /runs/
+delivery.local.json
+capability-snapshot.json
+delivery-result.json
+delivery/
 # 运行期日志与后台快照（需要时可临时 +f）
 /logs/
 *.log

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "account": {"platform": "wechat_mp", "alias": "default"},
+  "delivery": {
+    "mode": "draft",
+    "order": ["official_api", "browser", "manual"],
+    "output_dir": "./delivery",
+    "max_create_attempts_per_route": 1
+  },
+  "official_api": {
+    "enabled": true,
+    "credential_env": {"app_id": "WECHAT_APP_ID", "app_secret": "WECHAT_APP_SECRET"}
+  },
+  "browser": {
+    "enabled": true,
+    "provider": "auto",
+    "endpoint_env": "WECHAT_CDP_ENDPOINT"
+  }
+}
