@@ -102,6 +102,6 @@ Run `python tools/sync_skill.py --all --dry-run`, inspect its target list, then 
 
 Run `python tools/sync_skill.py --check`; require every discovered installation to report `identical` and exit 0.
 
-- [ ] **Step 4: Commit and push**
+- [x] **Step 4: Commit and push**
 
 Commit only repository source, tests, and documentation. Push the current feature branch, then compare local `HEAD` with `git ls-remote` for the same branch.
