@@ -41,6 +41,7 @@ node_modules/
 Thumbs.db
 .idea/
 .vscode/
+.worktrees/
 
 # ---- 发布策略产物（本仓库只做源码/skill 跟踪）----
 # 草稿/已发布 HTML、json 与配图大多可由 app 生成器/脚本复现，
