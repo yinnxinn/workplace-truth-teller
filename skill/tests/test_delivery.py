@@ -173,7 +173,7 @@ def test_preferences_can_disable_api_without_platform_specific_commands():
     lambda c: c['delivery'].update(order=['manual', 'browser']),
     lambda c: c['delivery'].update(order=['browser', 'browser', 'manual']),
     lambda c: c['official_api'].update(enabled='false'),
-    lambda c: c['official_api'].update(app_secret='fixture-secret'),
+    lambda c: c['official_api'].update(app_secret='example-secret'),
     lambda c: c['browser'].update(command='arbitrary command'),
 ])
 def test_bad_config_fails_closed(mutation):
@@ -212,11 +212,11 @@ def test_cli_works_from_unrelated_directory_with_unicode_and_bom(tmp_path):
 def test_bad_cli_json_does_not_echo_secret(tmp_path):
     planner()
     config = tmp_path / 'bad.json'
-    config.write_text('{"app_secret":"do-not-echo', encoding='utf-8')
+    config.write_text('{"app_secret":"example-secret', encoding='utf-8')
     result = subprocess.run([sys.executable, str(SCRIPT), '--config', str(config)],
                             capture_output=True, text=True)
     assert result.returncode == 2
-    assert 'do-not-echo' not in result.stdout + result.stderr
+    assert 'example-secret' not in result.stdout + result.stderr
 
 
 def test_defaults_without_snapshot_are_not_a_live_probe():

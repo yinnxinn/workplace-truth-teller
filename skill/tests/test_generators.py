@@ -61,7 +61,10 @@ def _tracked_text_files() -> list[Path]:
 
 def _is_hardcoded_secret_assignment(text: str) -> bool:
     for match in SECRET_ASSIGNMENT.finditer(text):
-        value = match.group(1).lower()
+        raw_value = match.group(1)
+        if re.fullmatch(r"[A-Z][A-Z0-9_]{2,}", raw_value):
+            continue
+        value = raw_value.lower()
         if not _is_placeholder_secret_value(value):
             return True
     return False
@@ -277,6 +280,15 @@ def test_javascript_scripts_pass_node_syntax_check() -> None:
 def test_repository_has_no_hard_coded_secret_assignments() -> None:
     matches = _secret_match_files()
     assert not matches, f"Potential hard-coded secret assignments in: {', '.join(matches)}"
+
+
+def test_secret_scanner_distinguishes_environment_names_from_literal_values() -> None:
+    assert not _is_hardcoded_secret_assignment(
+        '"app_secret": "WECHAT_APP_SECRET"'
+    )
+    assignment_key = '"app_' + 'secret"'
+    literal_value = '"thisIsARealLiteralValue123"'
+    assert _is_hardcoded_secret_assignment(assignment_key + ': ' + literal_value)
 
 
 def test_tracked_files_exclude_generated_outputs_and_session_artifacts() -> None:
