@@ -44,7 +44,23 @@
 
 执行顺序：准备正文与封面 → 按 API 当前要求上传正文图片并替换引用 → 获取封面素材标识 → 新增草稿 → 保存返回标识 → 获取详情并核对。不要将页面 `token` 当作 API 凭据，不把 base64 图片当成 API 已托管素材。
 
-接入时查阅微信官方[新增草稿](https://developers.weixin.qq.com/doc/offiaccount/Draft_Box/Add_draft.html)与[草稿详情](https://developers.weixin.qq.com/doc/offiaccount/Draft_Box/Get_draft.html)，以当时文档和账号权限为准。不承诺所有订阅号、服务号具备相同权限；此 Skill 没有捆绑微信 HTTP 客户端。
+接入时查阅微信官方[新增草稿](https://developers.weixin.qq.com/doc/offiaccount/Draft_Box/Add_draft.html)与[草稿详情](https://developers.weixin.qq.com/doc/offiaccount/Draft_Box/Get_draft.html)，以当时文档和账号权限为准。不承诺所有订阅号、服务号具备相同权限。
+
+内置 `scripts/wechat_api_delivery.py` 是 Python 3.10+ 标准库客户端：从配置指定的环境变量读取凭据，上传一张 JPEG/PNG 封面，创建一篇草稿，随后获取草稿详情并写入持久回执。它不发布文章、不输出凭据或令牌、不自动重试创建。当前直接执行模式只支持**无正文图片**的文章，正文中出现任何 `<img>` 都会在联网前拒绝；有正文图片时改用具备完整素材上传与 URL 重写能力的连接器。
+
+从 Skill 目录运行真实保存：
+
+```bash
+python scripts/wechat_api_delivery.py \
+  --article /path/to/article.json \
+  --html /path/to/wechat-safe.html \
+  --cover /path/to/cover.jpg \
+  --result /path/to/api-delivery-result.json
+```
+
+命令退出码 0 且回执 `persistence=verified` 才表示回读通过。退出码 2 表示输入或已有回执不匹配，3 表示网络错误或创建/回读状态不明，必须使用原通道核查；退出码 4 表示微信明确拒绝且未返回草稿标识。Windows 中脚本可在当前进程未刷新时读取用户或系统环境变量；其他平台从当前进程环境读取。
+
+`--result` 是幂等保护的一部分，不是一次性日志：相同账号、相同规范化内容的 `verified` 回执会直接复用且不联网；已有 `pending / unknown / saved / readback_mismatch` 时拒绝再次创建，必须先核查原尝试；回执属于其他账号或内容时也拒绝覆盖。只有明确的 `rejected_no_write` 可在同一路径保留历史后再次尝试。不要删除状态不明的回执来强行重跑。
 
 缺少执行器或接口不支持且未写入时进入 B。请求发出后响应丢失，先在 A 核查，不自动在 B 再建一篇。
 

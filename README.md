@@ -188,7 +188,7 @@ python skill/scripts/gen_wechat_safe.py --config article.json --out article.html
 
 直接说：“生成文章并保存到我的公众号草稿箱。”Skill 沿用已确认的目标账号和授权，按以下顺序选择能执行的通道：
 
-1. **官方 API**：使用宿主已有的公众号连接器或服务端客户端，上传素材、创建草稿、回读核对。
+1. **官方 API**：使用内置标准库客户端、宿主已有连接器或服务端客户端，上传素材、创建草稿、回读核对。
 2. **已授权浏览器**：没有可用 API 时使用平台提供的浏览器能力；确认登录账号，填写并保存，再重新打开核对。
 3. **手动导入包**：自动通道均不可用时，整理文章、HTML、图片、导入说明和结果清单，明确标注尚未保存。
 
@@ -212,7 +212,19 @@ API 缺配置但浏览器已就绪时直接用浏览器，不强制先配置 API
 python skill/scripts/delivery_plan.py --config delivery.local.json
 ```
 
-未提供观察快照时返回 `probe_required`。**此命令不联网、不保存草稿；本仓库没有捆绑官方 API 客户端。** 真正的执行由 AI 宿主现有工具完成；无 Python 时也可按同一协议选择通道，但不能运行本项目 HTML 生成器。
+未提供观察快照时返回 `probe_required`；这个计划命令不联网、不保存草稿。真实 API 保存使用：
+
+```bash
+python skill/scripts/wechat_api_delivery.py \
+  --article article.json \
+  --html wechat-safe.html \
+  --cover cover.jpg \
+  --result api-delivery-result.json
+```
+
+客户端从 `WECHAT_APP_ID`、`WECHAT_APP_SECRET` 读取凭据，上传封面、创建草稿并回读；不发布、不打印令牌、不自动重试创建。当前直接执行模式只支持无正文图片的文章，检测到任何 `<img>` 会在联网前停止；有正文图片时改用能完成素材上传和 URL 重写的宿主连接器。无 Python 时仍可由宿主按协议执行，但不能运行本项目脚本。
+
+请为每篇文章保留固定的 `--result` 路径。它同时是防重复台账：已验证结果会直接复用，状态不明或已有草稿标识时拒绝盲目重建，不同账号或内容也不能覆盖该回执。内容身份按规范化正文、封面哈希和 AppID 指纹计算，因此仅调整 JSON 排版或换行不会绕过去重。
 
 保存响应不明时先核查原尝试，不换通道重复创建。必须有草稿标识及账号、标题、正文、图片的回读证据才计为成功；明确的安全拒绝不触发绕过式降级。完整约定、快照字段及恢复流程见[交付协议 v1](skill/references/draft_delivery.md)。
 
