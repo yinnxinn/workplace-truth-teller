@@ -50,7 +50,8 @@ def test_readme_defines_one_global_skill_sync_workflow():
         ".workbuddy/skills",
         ".workbuddy-ai/skills",
         ".truth-teller-skill-backups",
-        "不会复制凭据",
+        "不会从维护源复制凭据",
+        "备份会原样保留旧目录",
     ):
         assert required_text in readme
 

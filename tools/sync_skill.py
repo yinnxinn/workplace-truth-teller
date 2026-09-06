@@ -6,6 +6,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -13,13 +14,27 @@ import uuid
 
 
 SKILL_NAME = "toxic-corporate-truth-teller"
-EXCLUDED_DIRS = {".git", ".pytest_cache", "__pycache__"}
+ALLOWED_TOP_LEVEL = {
+    "SKILL.md", "agents", "assets", "examples", "references", "scripts", "tests",
+}
+EXCLUDED_DIRS = {
+    ".git", ".pytest_cache", "__pycache__", "delivery", "evidence",
+    "logs", "output", "outputs", "runs",
+}
 EXCLUDED_FILES = {
     ".env",
     "api-delivery-result.json",
     "capability-snapshot.json",
     "delivery-result.json",
     "delivery.local.json",
+    "credentials.json",
+    "credential.json",
+    "secrets.json",
+    "tokens.json",
+    "cookies.json",
+    "session.json",
+    "auth-state.json",
+    "auth_state.json",
 }
 
 
@@ -35,18 +50,37 @@ def known_skill_roots(home: Path | None = None) -> dict[str, Path]:
 
 
 def _included(relative: Path) -> bool:
-    if any(part in EXCLUDED_DIRS for part in relative.parts):
+    top_level = relative.parts[0]
+    if top_level != "SKILL.md" and top_level.casefold() not in {
+            item.casefold() for item in ALLOWED_TOP_LEVEL if item != "SKILL.md"}:
         return False
-    name = relative.name
-    if name in EXCLUDED_FILES or name.endswith(".pyc"):
+    if any(part.casefold() in EXCLUDED_DIRS for part in relative.parts):
+        return False
+    name = relative.name.casefold()
+    if name in EXCLUDED_FILES or name.endswith((".pyc", ".log", ".tmp")):
         return False
     if name == ".env" or name.startswith(".env.") or name.endswith(".env"):
+        return False
+    if name.endswith(("api-result.json", "delivery-result.json",
+                      "delivery-receipt.json", "receipt.json")):
         return False
     return True
 
 
+def _assert_no_links(root: Path) -> None:
+    if _is_link(root):
+        raise ValueError("Skill trees cannot be symbolic links or junctions")
+    for directory, names, files in os.walk(root, followlinks=False):
+        for name in [*names, *files]:
+            path = Path(directory) / name
+            if _is_link(path):
+                raise ValueError("Skill trees cannot contain symbolic links or junctions")
+
+
 def build_manifest(source: Path) -> dict[str, str]:
-    source = Path(source).expanduser().resolve()
+    source = Path(source).expanduser()
+    _assert_no_links(source)
+    source = source.resolve()
     if not source.is_dir() or not (source / "SKILL.md").is_file():
         raise ValueError("source must be a Skill directory containing SKILL.md")
     manifest = {}
@@ -102,6 +136,13 @@ def _is_link(path: Path) -> bool:
     )
 
 
+def _path_key(path: Path, *, case_insensitive: bool | None = None) -> str:
+    value = str(Path(path).resolve())
+    if case_insensitive is None:
+        case_insensitive = os.name == "nt"
+    return value.casefold() if case_insensitive else value
+
+
 def target_status(source: Path, root: Path, label: str) -> dict:
     source = Path(source).expanduser().resolve()
     source_manifest = build_manifest(source)
@@ -117,6 +158,9 @@ def target_status(source: Path, root: Path, label: str) -> dict:
         return result
     if _is_link(target) or not target.is_dir():
         result["status"] = "unsupported_target"
+        return result
+    if not (target / "SKILL.md").is_file():
+        result["status"] = "invalid_target"
         return result
     target_manifest = build_manifest(target)
     result["status"] = (
@@ -148,19 +192,30 @@ def sync_target(source: Path, root: Path, backup_root: Path, label: str,
     source = Path(source).expanduser().resolve()
     source_manifest = build_manifest(source)
     root = validate_target_root(root)
-    if root == source or root.is_relative_to(source):
-        raise ValueError("target root cannot be inside the source Skill")
     target = root / SKILL_NAME
+    if (root == source or root.is_relative_to(source)
+            or source == target or source.is_relative_to(target)):
+        raise ValueError("target root cannot be inside the source Skill")
+    backup_root = Path(backup_root).expanduser().resolve()
+    if (backup_root == root or backup_root.is_relative_to(root)
+            or backup_root == source or backup_root.is_relative_to(source)):
+        raise ValueError("backup root must be outside source and target Skill roots")
     result = {
         "host": label,
         "target": str(target),
         "source_manifest_sha256": _manifest_sha256(source_manifest),
     }
+    if _is_link(target):
+        raise ValueError("existing target must be a regular directory")
     exists = target.exists()
     if exists:
         if _is_link(target) or not target.is_dir():
             raise ValueError("existing target must be a regular directory")
-        if (build_manifest(target) == source_manifest
+        _assert_no_links(target)
+        target_manifest = (
+            build_manifest(target) if (target / "SKILL.md").is_file() else {}
+        )
+        if (target_manifest == source_manifest
                 and not _has_excluded_files(target)):
             result["status"] = "identical"
             return result
@@ -177,7 +232,6 @@ def sync_target(source: Path, root: Path, backup_root: Path, label: str,
         if build_manifest(stage) != source_manifest:
             raise RuntimeError("staged Skill verification failed")
         if exists:
-            backup_root = Path(backup_root).expanduser().resolve()
             backup = _backup_path(backup_root, label).resolve()
             if not backup.is_relative_to(backup_root):
                 raise ValueError("backup path escapes backup root")
@@ -188,12 +242,17 @@ def sync_target(source: Path, root: Path, backup_root: Path, label: str,
             target.rename(old)
         try:
             stage.rename(target)
+            if build_manifest(target) != source_manifest:
+                raise RuntimeError("installed Skill verification failed")
         except Exception:
+            failed = root / f".{SKILL_NAME}-failed-{uuid.uuid4().hex}"
+            if target.exists():
+                target.rename(failed)
             if old.exists() and not target.exists():
                 old.rename(target)
+            if failed.exists():
+                shutil.rmtree(failed)
             raise
-        if build_manifest(target) != source_manifest:
-            raise RuntimeError("installed Skill verification failed")
         if old.exists():
             shutil.rmtree(old)
     finally:
@@ -221,7 +280,7 @@ def _selected_targets(args, home: Path) -> list[tuple[str, Path]]:
     seen = set()
     for label, root in selected:
         resolved = validate_target_root(root)
-        key = str(resolved).casefold()
+        key = _path_key(resolved)
         if key not in seen:
             seen.add(key)
             unique.append((label, resolved))
@@ -246,6 +305,10 @@ def main(argv=None) -> int:
         parser.error("choose --all, --target, or --check")
     try:
         targets = _selected_targets(args, Path.home())
+        if args.check and not targets:
+            print(json.dumps({"skill": SKILL_NAME, "targets": [],
+                              "status": "no_targets"}, ensure_ascii=False, indent=2))
+            return 1
         if args.check:
             results = [target_status(args.source, root, label)
                        for label, root in targets]

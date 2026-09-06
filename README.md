@@ -140,7 +140,7 @@ python tools/sync_skill.py --target /path/to/tool/skills
 python tools/sync_skill.py --target /path/to/first/skills --target /path/to/second/skills
 ```
 
-Gemini 或其他宿主的根目录不存在时，先按该工具文档启用 Skills，再用 `--target` 安装。同步器不会复制凭据、环境变量、公众号回执、缓存或本地配置，也不调用微信接口。不同宿主使用同一套 Skill，只代表指令和脚本一致；浏览器、网络与账号权限仍由各宿主分别提供。安装或更新后请开启新会话，让工具重新发现 Skill。
+Gemini 或其他宿主的根目录不存在时，先按该工具文档启用 Skills，再用 `--target` 安装。同步器不会从维护源复制凭据、环境变量、公众号回执、缓存或本地配置，也不调用微信接口；为保证可恢复，备份会原样保留旧目录，其中可能包含目标原有的敏感文件，请按本机敏感数据管理。不同宿主使用同一套 Skill，只代表指令和脚本一致；浏览器、网络与账号权限仍由各宿主分别提供。安装或更新后请开启新会话，让工具重新发现 Skill。
 
 日常更新固定为：`git pull` → 运行测试 → `python tools/sync_skill.py --all` → `python tools/sync_skill.py --check`。如需回滚，从命令输出所示的 `.truth-teller-skill-backups` 目录恢复对应宿主副本。
 

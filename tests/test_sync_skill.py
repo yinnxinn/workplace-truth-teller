@@ -27,6 +27,14 @@ def make_source(tmp_path):
     (source / ".env").write_text("TOKEN=secret", encoding="utf-8")
     (source / "__pycache__").mkdir()
     (source / "__pycache__" / "run.pyc").write_bytes(b"compiled")
+    (source / "output").mkdir()
+    (source / "output" / "article.html").write_text("runtime output", encoding="utf-8")
+    (source / "evidence").mkdir()
+    (source / "evidence" / "readback.json").write_text("evidence", encoding="utf-8")
+    (source / "My-Delivery-Result.JSON").write_text("receipt", encoding="utf-8")
+    (source / "credentials.json").write_text("credential", encoding="utf-8")
+    (source / "api-result.json").write_text("api receipt", encoding="utf-8")
+    (source / "session.log").write_text("runtime log", encoding="utf-8")
     return source
 
 
@@ -136,6 +144,123 @@ def test_home_and_drive_root_are_rejected_as_target_roots(tmp_path):
     drive_root = Path(tmp_path.anchor)
     with pytest.raises(ValueError):
         sync.validate_target_root(drive_root, home=tmp_path)
+
+
+def test_backup_root_inside_skill_root_is_rejected_before_mutation(tmp_path):
+    sync = sync_module()
+    source = make_source(tmp_path)
+    root = tmp_path / "host" / "skills"
+    target = root / sync.SKILL_NAME
+    target.mkdir(parents=True)
+    (target / "SKILL.md").write_text("old local version", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        sync.sync_target(source, root, root / "backups", "fixture")
+
+    assert (target / "SKILL.md").read_text(encoding="utf-8") == "old local version"
+    assert not (root / "backups").exists()
+
+
+def test_source_inside_destination_is_rejected_before_mutation(tmp_path):
+    sync = sync_module()
+    root = tmp_path / "host" / "skills"
+    target = root / sync.SKILL_NAME
+    source = target / "source"
+    source.mkdir(parents=True)
+    (source / "SKILL.md").write_text("source version", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        sync.sync_target(source, root, tmp_path / "backups", "fixture")
+
+    assert (source / "SKILL.md").read_text(encoding="utf-8") == "source version"
+
+
+def test_failed_post_install_verification_restores_old_target(tmp_path, monkeypatch):
+    sync = sync_module()
+    source = make_source(tmp_path)
+    root = tmp_path / "host" / "skills"
+    target = root / sync.SKILL_NAME
+    target.mkdir(parents=True)
+    (target / "SKILL.md").write_text("old local version", encoding="utf-8")
+    real_build_manifest = sync.build_manifest
+    target_checks = 0
+
+    def fail_second_target_check(path):
+        nonlocal target_checks
+        if Path(path).resolve() == target.resolve():
+            target_checks += 1
+            if target_checks == 2:
+                return {"corrupt": "manifest"}
+        return real_build_manifest(path)
+
+    monkeypatch.setattr(sync, "build_manifest", fail_second_target_check)
+    with pytest.raises(RuntimeError):
+        sync.sync_target(source, root, tmp_path / "backups", "fixture")
+
+    assert (target / "SKILL.md").read_text(encoding="utf-8") == "old local version"
+    assert list(root.glob(f".{sync.SKILL_NAME}-old-*")) == []
+
+
+def test_path_deduplication_respects_host_case_sensitivity():
+    sync = sync_module()
+    upper = Path("/tmp/Skills")
+    lower = Path("/tmp/skills")
+    assert sync._path_key(upper, case_insensitive=False) != sync._path_key(
+        lower, case_insensitive=False
+    )
+    assert sync._path_key(upper, case_insensitive=True) == sync._path_key(
+        lower, case_insensitive=True
+    )
+
+
+def test_internal_source_links_are_rejected(tmp_path):
+    sync = sync_module()
+    source = make_source(tmp_path)
+    outside = tmp_path / "outside.txt"
+    outside.write_text("outside secret", encoding="utf-8")
+    link = source / "scripts" / "outside.txt"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pytest.skip("symbolic links are not available in this Windows session")
+
+    with pytest.raises(ValueError):
+        sync.build_manifest(source)
+
+
+def test_link_guard_is_exercised_for_nested_files(tmp_path, monkeypatch):
+    sync = sync_module()
+    source = make_source(tmp_path)
+    real_is_link = sync._is_link
+    monkeypatch.setattr(
+        sync, "_is_link",
+        lambda path: Path(path).name == "run.py" or real_is_link(Path(path)),
+    )
+    with pytest.raises(ValueError):
+        sync.build_manifest(source)
+
+
+def test_check_reports_malformed_installation_without_aborting(tmp_path):
+    sync = sync_module()
+    source = make_source(tmp_path)
+    root = tmp_path / "host" / "skills"
+    target = root / sync.SKILL_NAME
+    target.mkdir(parents=True)
+    (target / "orphan.txt").write_text("broken install", encoding="utf-8")
+
+    result = sync.target_status(source, root, "fixture")
+
+    assert result["status"] == "invalid_target"
+
+
+def test_empty_check_does_not_claim_success(tmp_path, monkeypatch, capsys):
+    sync = sync_module()
+    source = make_source(tmp_path)
+    monkeypatch.setattr(sync, "known_skill_roots", lambda home: {})
+
+    assert sync.main(["--source", str(source), "--check"]) == 1
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "no_targets"
 
 
 def test_known_hosts_use_standard_user_skill_roots(tmp_path):
