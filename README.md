@@ -1,6 +1,6 @@
 # Workplace Truth Teller
 
-[![验证 Skill](https://github.com/yinnxinn/workplace-truth-teller/actions/workflows/validate-skill.yml/badge.svg)](https://github.com/yinnxinn/workplace-truth-teller/actions/workflows/validate-skill.yml)
+[![验证 Skill](https://github.com/yinnxinn/truth-teller/actions/workflows/validate-skill.yml/badge.svg)](https://github.com/yinnxinn/truth-teller/actions/workflows/validate-skill.yml)
 
 中文名：**毒舌职场真相官**。
 
@@ -94,7 +94,7 @@ flowchart TD
 
 ## 两种使用方式
 
-### 1. 安装 Codex Skill（推荐）
+### 1. 全局安装同一套 Skill（推荐）
 
 Skill 的稳定调用名保持为：
 
@@ -102,38 +102,47 @@ Skill 的稳定调用名保持为：
 $toxic-corporate-truth-teller
 ```
 
-安装目标是用户目录下的 `~/.codex/skills/toxic-corporate-truth-teller`；Windows 命令会自动换算成对应的用户路径。
+仓库中的 `skill/` 是唯一维护源。本机各工具目录只是部署副本，不应单独修改；更新仓库后统一运行同步器，避免 Codex 能用新版、WorkBuddy 却还在读旧规则。
 
 先克隆仓库：
 
 ```powershell
-git clone https://github.com/yinnxinn/workplace-truth-teller.git
+git clone https://github.com/yinnxinn/truth-teller.git
+cd truth-teller
 ```
 
-Windows PowerShell 安装：
-
-```powershell
-$repoRoot = (Resolve-Path ".\workplace-truth-teller").Path
-$skillsRoot = Join-Path $env:USERPROFILE ".codex\skills"
-$target = Join-Path $skillsRoot "toxic-corporate-truth-teller"
-if (Test-Path -LiteralPath $target) { throw "目标目录已存在，请先核对或备份现有 Skill：$target" }
-New-Item -ItemType Directory -Path $skillsRoot -Force | Out-Null
-Copy-Item -LiteralPath (Join-Path $repoRoot "skill") -Destination $target -Recurse
-```
-
-macOS/Linux 安装：
+先预览目标，再安装并核对：
 
 ```bash
-git clone https://github.com/yinnxinn/workplace-truth-teller.git
-target="${CODEX_HOME:-$HOME/.codex}/skills/toxic-corporate-truth-teller"
-test ! -e "$target" || { echo "目标目录已存在，请先核对或备份：$target"; exit 1; }
-mkdir -p "$(dirname "$target")"
-cp -R workplace-truth-teller/skill "$target"
+python tools/sync_skill.py --all --dry-run
+python tools/sync_skill.py --all
+python tools/sync_skill.py --check
 ```
 
-安装命令发现目标目录已存在时会停止，不会自动覆盖你的本地修改。
+`--all` 只选择当前用户目录下已经存在的宿主 Skill 根目录，不会凭空配置未安装的软件：
 
-其他支持 Skill 的 AI 平台：将完整 `skill/` 目录放入该平台文档规定的位置，保留 `scripts/`、`references/`、`assets/` 的相对结构。不支持 Skill 自动发现的平台，可将 `SKILL.md` 及其引用资源作为项目指令加载。实际调用方式与工具权限以宿主为准，不需要安装名为 `agent-browser` 的特定工具。
+| 宿主 | 默认 Skill 根目录 |
+| --- | --- |
+| Codex | `~/.codex/skills` |
+| Cursor | `~/.cursor/skills` |
+| Gemini | `~/.gemini/skills` |
+| WorkBuddy | `~/.workbuddy/skills` |
+| WorkBuddy AI | `~/.workbuddy-ai/skills` |
+
+每个根目录下的实际安装名都是 `toxic-corporate-truth-teller`。更新已有版本前，同步器会把旧副本完整备份到 `~/.truth-teller-skill-backups/<宿主>/<时间戳>/`；内容已经一致时不写入也不产生备份。`--check` 只比较文件清单和 SHA256，不修改文件。
+
+例如 Codex 的完整安装位置是 `~/.codex/skills/toxic-corporate-truth-teller`；其他宿主同样在上表根目录下使用这一固定名称。
+
+其他支持 Agent Skills 的平台可以显式指定一个或多个 Skill 根目录：
+
+```bash
+python tools/sync_skill.py --target /path/to/tool/skills
+python tools/sync_skill.py --target /path/to/first/skills --target /path/to/second/skills
+```
+
+Gemini 或其他宿主的根目录不存在时，先按该工具文档启用 Skills，再用 `--target` 安装。同步器不会复制凭据、环境变量、公众号回执、缓存或本地配置，也不调用微信接口。不同宿主使用同一套 Skill，只代表指令和脚本一致；浏览器、网络与账号权限仍由各宿主分别提供。安装或更新后请开启新会话，让工具重新发现 Skill。
+
+日常更新固定为：`git pull` → 运行测试 → `python tools/sync_skill.py --all` → `python tools/sync_skill.py --check`。如需回滚，从命令输出所示的 `.truth-teller-skill-backups` 目录恢复对应宿主副本。
 
 ### 2. 使用完整工作区
 

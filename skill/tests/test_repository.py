@@ -144,11 +144,12 @@ def test_documentation_uses_real_install_and_validation_commands():
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
     contributing = (PROJECT_ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
 
-    assert "https://github.com/yinnxinn/workplace-truth-teller.git" in readme
+    assert "https://github.com/yinnxinn/truth-teller.git" in readme
     assert "<仓库地址>" not in readme
     assert "<仓库地址>" not in contributing
-    assert "目标目录已存在，请先核对或备份" in readme
-    assert "不会自动覆盖" in readme
+    assert "python tools/sync_skill.py --all" in readme
+    assert "python tools/sync_skill.py --check" in readme
+    assert ".truth-teller-skill-backups" in readme
     for command_fragment in ("quick_validate.py", "PYTHONUTF8", "python -m pytest", "git diff --check"):
         assert command_fragment in contributing
 
@@ -156,7 +157,19 @@ def test_documentation_uses_real_install_and_validation_commands():
 def test_readme_links_to_ci_and_repository():
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
     assert "actions/workflows/validate-skill.yml" in readme
-    assert "github.com/yinnxinn/workplace-truth-teller" in readme
+    assert "github.com/yinnxinn/truth-teller" in readme
+
+
+def test_delivery_reference_uses_the_global_sync_contract():
+    reference = (ROOT / "references/draft_delivery.md").read_text(encoding="utf-8")
+    for required_text in (
+        "唯一维护源",
+        "python tools/sync_skill.py --all",
+        "--target <skills-root>",
+        ".truth-teller-skill-backups",
+        "凭据、回执、本地配置与缓存不复制",
+    ):
+        assert required_text in reference
 
 
 def test_validate_workflow_has_required_github_actions_contract():

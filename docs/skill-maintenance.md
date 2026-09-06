@@ -1,6 +1,6 @@
 # Skill 维护与版本跟踪
 
-公共仓库：`yinnxinn/workplace-truth-teller`。
+公共仓库：`yinnxinn/truth-teller`。
 
 本项目同时维护两层能力：
 
@@ -40,15 +40,17 @@ python "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_valid
 git diff --check
 ```
 
-## 同步到本机 Codex
+## 同步到本机各 AI 宿主
 
-仓库中的 `skill/` 是维护源。安装目录通常是：
+仓库中的 `skill/` 是唯一维护源。Codex、Cursor、Gemini、WorkBuddy 和 WorkBuddy AI 的安装目录都是部署副本，不能在副本里形成独立版本。
 
-```text
-~/.codex/skills/toxic-corporate-truth-teller
+```powershell
+python tools/sync_skill.py --all --dry-run
+python tools/sync_skill.py --all
+python tools/sync_skill.py --check
 ```
 
-目标目录已存在时先核对并备份，不盲目覆盖。用户已授权更新时，在核对差异后合并本次范围内的文件，保留目标中的自定义模板、生成器和配置；仅在冲突无法安全合并时再询问。记录来源目录、分支、同步文件清单和 SHA256，并验证全部相对引用。其他平台使用各自规定的 Skill 安装位置，不把本机路径写入通用配置。新会话核对加载路径，避免继续使用缓存的旧指令。
+同步器只自动处理已存在的标准 Skill 根目录；其他兼容宿主用 `--target <skills-root>` 显式添加。不同版本的目标会先完整备份到 `~/.truth-teller-skill-backups/`，再以经过哈希校验的仓库版本替换；目标内原有自定义内容保存在备份里，不混入统一版本。配置、凭据、回执和缓存不参与同步。新会话核对加载路径，避免继续使用缓存的旧指令。
 
 ## HTML 生成器边界
 

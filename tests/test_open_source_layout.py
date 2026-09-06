@@ -31,10 +31,28 @@ def test_readme_explains_the_product_and_safe_installation():
         ".codex/skills/toxic-corporate-truth-teller",
         "scripts/gen_wechat_safe.py",
         "不自动发布",
-        "github.com/yinnxinn/workplace-truth-teller",
+        "github.com/yinnxinn/truth-teller",
     ):
         assert required_text in readme
     assert "微信公众号内容自动化工作区" not in readme
+
+
+def test_readme_defines_one_global_skill_sync_workflow():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for required_text in (
+        "唯一维护源",
+        "python tools/sync_skill.py --all",
+        "python tools/sync_skill.py --check",
+        "--target",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills",
+        ".workbuddy/skills",
+        ".workbuddy-ai/skills",
+        ".truth-teller-skill-backups",
+        "不会复制凭据",
+    ):
+        assert required_text in readme
 
 
 def test_license_and_contributing_guide_are_public_ready():
@@ -110,7 +128,7 @@ def test_legacy_implementation_plan_is_clearly_archived():
 
 def test_maintenance_guide_matches_the_public_repository():
     guide = (ROOT / "docs/skill-maintenance.md").read_text(encoding="utf-8")
-    assert "workplace-truth-teller" in guide
+    assert "yinnxinn/truth-teller" in guide
     assert "GitHub 私有" not in guide
     assert "D:\\wechat" not in guide
     assert "不存在的 agent-browser" not in guide

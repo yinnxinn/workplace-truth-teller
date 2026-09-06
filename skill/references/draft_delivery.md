@@ -166,6 +166,6 @@ python scripts/delivery_plan.py --config delivery.local.json --snapshot capabili
 
 ## 安装与漂移
 
-确定一份仓库目录为维护源；安装时部署完整 Skill 及其相对引用资源。配置放 Skill 外，通过显式路径或 `TRUTH_TELLER_CONFIG` 指定，各平台复用同一 JSON 或相同 schema。
+GitHub 项目的 `skill/` 是唯一维护源；从仓库运行 `python tools/sync_skill.py --all` 可部署到当前用户已存在的 Codex、Cursor、Gemini、WorkBuddy 与 WorkBuddy AI Skill 根目录，其他宿主使用显式 `--target <skills-root>`。配置放 Skill 外，通过显式路径或 `TRUTH_TELLER_CONFIG` 指定，各平台复用同一 JSON 或相同 schema。
 
-更新前比较文件哈希并备份将被替换文件，保留自定义配置、模板和生成器改动。记录同步清单与哈希，更新后检查资源引用、脚本和配置版本。新会话确认加载路径；已有会话可能保留旧说明。历史成功不能自动启用另一套脚本。
+同步器更新前比较文件哈希，把被替换的完整副本备份到 `~/.truth-teller-skill-backups/`，安装后再核对清单。凭据、回执、本地配置与缓存不复制；需要保留的目标端自定义改动应先合并回仓库维护源。新会话确认加载路径；已有会话可能保留旧说明。历史成功不能自动启用另一套脚本。
